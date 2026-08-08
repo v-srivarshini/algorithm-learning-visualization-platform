@@ -5,7 +5,9 @@ const getAlgorithms = async (req, res) => {
   try {
     const { search, category, difficulty } = req.query;
 
-    const filter = {};
+    const filter = {
+  isPublished: true,
+};
 
     // Search by name or description
     if (search) {
@@ -60,7 +62,10 @@ const getAlgorithms = async (req, res) => {
 // Get single algorithm
 const getAlgorithmById = async (req, res) => {
   try {
-    const algorithm = await Algorithm.findById(req.params.id);
+   const algorithm = await Algorithm.findOne({
+  _id: req.params.id,
+  isPublished: true,
+});
 
     if (!algorithm) {
       return res.status(404).json({
@@ -134,7 +139,10 @@ const updateAlgorithm = async (req, res) => {
 // Delete algorithm
 const deleteAlgorithm = async (req, res) => {
   try {
-    const algorithm = await Algorithm.findByIdAndDelete(req.params.id);
+    const algorithm = await Algorithm.findOneAndDelete({
+      _id: req.params.id,
+      isPublished: true,
+    });
 
     if (!algorithm) {
       return res.status(404).json({
@@ -154,10 +162,61 @@ const deleteAlgorithm = async (req, res) => {
   }
 };
 
+const compareAlgorithms = async (req, res) => {
+  try {
+    const { ids } = req.query;
+
+    if (!ids) {
+      return res.status(400).json({
+        message: "Algorithm IDs are required",
+      });
+    }
+
+    const algorithmIds = ids.split(",");
+
+    if (algorithmIds.length < 2) {
+      return res.status(400).json({
+        message: "At least 2 algorithms are required for comparison",
+      });
+    }
+
+    if (algorithmIds.length > 5) {
+      return res.status(400).json({
+        message: "You can compare a maximum of 5 algorithms",
+      });
+    }
+
+const algorithms = await Algorithm.find({
+  _id: { $in: algorithmIds },
+  isPublished: true,
+}).select(
+      "name category difficulty timeComplexity spaceComplexity applications advantages disadvantages"
+    );
+
+    if (algorithms.length !== algorithmIds.length) {
+      return res.status(404).json({
+        message: "One or more algorithms not found",
+      });
+    }
+
+    res.status(200).json({
+      count: algorithms.length,
+      algorithms,
+    });
+  } catch (error) {
+    console.error("Compare algorithms error:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   getAlgorithms,
   getAlgorithmById,
   createAlgorithm,
   updateAlgorithm,
   deleteAlgorithm,
+  compareAlgorithms,
 };

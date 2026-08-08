@@ -6,6 +6,7 @@ const {
   createAlgorithm,
   updateAlgorithm,
   deleteAlgorithm,
+  compareAlgorithms,
 } = require("../controllers/algorithmController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -15,6 +16,7 @@ const router = express.Router();
 
 // Public/read routes
 router.get("/", getAlgorithms);
+router.get("/compare", compareAlgorithms);
 router.get("/:id", getAlgorithmById);
 
 // Admin routes
