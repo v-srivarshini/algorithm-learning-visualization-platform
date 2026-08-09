@@ -17,11 +17,16 @@ const questionSchema = new mongoose.Schema(
       },
     },
 
-    correctAnswer: {
-      type: String,
-      required: true,
+   correctAnswer: {
+  type: String,
+  required: true,
+  validate: {
+    validator: function (value) {
+      return this.options.includes(value);
     },
-
+    message: "Correct answer must be one of the options",
+  },
+},
     explanation: {
       type: String,
       default: "",

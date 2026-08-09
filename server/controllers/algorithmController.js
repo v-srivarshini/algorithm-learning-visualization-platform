@@ -1,4 +1,6 @@
 const Algorithm = require("../models/Algorithm");
+const Progress = require("../models/Progress");
+const Bookmark = require("../models/Bookmark");
 
 // Get all algorithms
 const getAlgorithms = async (req, res) => {
@@ -137,12 +139,10 @@ const updateAlgorithm = async (req, res) => {
 
 
 // Delete algorithm
+
 const deleteAlgorithm = async (req, res) => {
   try {
-    const algorithm = await Algorithm.findOneAndDelete({
-      _id: req.params.id,
-      isPublished: true,
-    });
+    const algorithm = await Algorithm.findByIdAndDelete(req.params.id);
 
     if (!algorithm) {
       return res.status(404).json({
@@ -150,8 +150,18 @@ const deleteAlgorithm = async (req, res) => {
       });
     }
 
+    // Remove related progress records
+    await Progress.deleteMany({
+      algorithm: req.params.id,
+    });
+
+    // Remove related bookmarks
+    await Bookmark.deleteMany({
+      algorithm: req.params.id,
+    });
+
     res.status(200).json({
-      message: "Algorithm deleted successfully",
+      message: "Algorithm and related data deleted successfully",
     });
   } catch (error) {
     console.error("Delete algorithm error:", error);
@@ -161,7 +171,6 @@ const deleteAlgorithm = async (req, res) => {
     });
   }
 };
-
 const compareAlgorithms = async (req, res) => {
   try {
     const { ids } = req.query;

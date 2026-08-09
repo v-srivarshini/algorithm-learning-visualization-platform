@@ -147,10 +147,9 @@ const updateChallenge = async (req, res) => {
 // Delete challenge
 const deleteChallenge = async (req, res) => {
   try {
-    const challenge = await Challenge.findOneAndDelete({
-      _id: req.params.id,
-      isPublished: true,
-    });
+    const challenge = await Challenge.findByIdAndDelete(
+      req.params.id
+    );
 
     if (!challenge) {
       return res.status(404).json({
@@ -158,8 +157,14 @@ const deleteChallenge = async (req, res) => {
       });
     }
 
+    // Remove all submissions related to this challenge
+    await ChallengeSubmission.deleteMany({
+      challenge: req.params.id,
+    });
+
     res.status(200).json({
-      message: "Challenge deleted successfully",
+      message:
+        "Challenge and related submissions deleted successfully",
     });
   } catch (error) {
     console.error("Delete challenge error:", error);
@@ -169,6 +174,8 @@ const deleteChallenge = async (req, res) => {
     });
   }
 };
+
+
 const submitChallenge = async (req, res) => {
   try {
     const { language, code } = req.body;
