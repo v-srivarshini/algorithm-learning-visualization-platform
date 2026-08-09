@@ -2,12 +2,37 @@ const Quiz = require("../models/Quiz");
 
 const QuizAttempt = require("../models/QuizAttempt");
 
+const validateQuestions = (questions) => {
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return "Quiz must contain at least one question";
+  }
+
+  for (const question of questions) {
+    if (
+      !question.question ||
+      !Array.isArray(question.options) ||
+      question.options.length < 2 ||
+      !question.correctAnswer
+    ) {
+      return "Each question must have a question, at least 2 options, and a correct answer";
+    }
+
+    if (!question.options.includes(question.correctAnswer)) {
+      return `Correct answer must be one of the options for question: ${question.question}`;
+    }
+  }
+
+  return null;
+};
+
 // Get all quizzes
 const getQuizzes = async (req, res) => {
   try {
     const { category, difficulty, algorithm } = req.query;
 
-    const filter = {};
+    const filter = {
+  isPublished: true,
+};
 
     if (category) {
       filter.category = {
@@ -49,7 +74,10 @@ const getQuizzes = async (req, res) => {
 // Get one quiz
 const getQuizById = async (req, res) => {
   try {
-    const quiz = await Quiz.findById(req.params.id)
+    const quiz = await Quiz.findOne({
+      _id: req.params.id,
+      isPublished: true,
+    })
       .populate("algorithm", "name category")
       .select("-questions.correctAnswer");
 
@@ -73,6 +101,14 @@ const getQuizById = async (req, res) => {
 // Create quiz
 const createQuiz = async (req, res) => {
   try {
+    const validationError = validateQuestions(req.body.questions);
+
+    if (validationError) {
+      return res.status(400).json({
+        message: validationError,
+      });
+    }
+
     const quiz = await Quiz.create({
       ...req.body,
       createdBy: req.user.userId,
@@ -95,6 +131,18 @@ const createQuiz = async (req, res) => {
 // Update quiz
 const updateQuiz = async (req, res) => {
   try {
+    if (req.body.questions) {
+      const validationError = validateQuestions(
+        req.body.questions
+      );
+
+      if (validationError) {
+        return res.status(400).json({
+          message: validationError,
+        });
+      }
+    }
+
     const quiz = await Quiz.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -123,7 +171,6 @@ const updateQuiz = async (req, res) => {
   }
 };
 
-
 // Delete quiz
 const deleteQuiz = async (req, res) => {
   try {
@@ -135,8 +182,13 @@ const deleteQuiz = async (req, res) => {
       });
     }
 
+    // Remove all attempts related to this quiz
+    await QuizAttempt.deleteMany({
+      quiz: req.params.id,
+    });
+
     res.status(200).json({
-      message: "Quiz deleted successfully",
+      message: "Quiz and related attempts deleted successfully",
     });
   } catch (error) {
     console.error("Delete quiz error:", error);
@@ -158,42 +210,92 @@ const submitQuiz = async (req, res) => {
       });
     }
 
-    const quiz = await Quiz.findById(req.params.id);
+    const quiz = await Quiz.findOne({
+      _id: req.params.id,
+      isPublished: true,
+    });
 
     if (!quiz) {
       return res.status(404).json({
         message: "Quiz not found",
       });
     }
+const questionIds = quiz.questions.map(
+  (question) => question._id.toString()
+);
 
+const submittedQuestionIds = new Set();
+
+for (const answer of answers) {
+  if (!answer.questionId) {
+    return res.status(400).json({
+      message: "Question ID is required",
+    });
+  }
+
+  if (!questionIds.includes(answer.questionId)) {
+    return res.status(400).json({
+      message: "Invalid question ID submitted",
+    });
+  }
+
+  if (submittedQuestionIds.has(answer.questionId)) {
+    return res.status(400).json({
+      message: "Duplicate question answer submitted",
+    });
+  }
+
+  submittedQuestionIds.add(answer.questionId);
+
+  if (
+    answer.selectedAnswer !== undefined &&
+    answer.selectedAnswer !== null &&
+    typeof answer.selectedAnswer !== "string"
+  ) {
+    return res.status(400).json({
+      message: "Selected answer must be a string",
+    });
+  }
+}
     let score = 0;
 
     const results = quiz.questions.map((question) => {
-      const submittedAnswer = answers.find(
-        (answer) =>
-          answer.questionId === question._id.toString()
-      );
+  const submittedAnswer = answers.find(
+    (answer) =>
+      answer.questionId === question._id.toString()
+  );
 
-      const selectedAnswer = submittedAnswer
-        ? submittedAnswer.selectedAnswer
-        : null;
+  const selectedAnswer = submittedAnswer
+    ? submittedAnswer.selectedAnswer
+    : null;
 
-      const isCorrect =
-        selectedAnswer === question.correctAnswer;
+if (
+  selectedAnswer !== null &&
+  !question.options.includes(selectedAnswer)
+) {
+  return res.status(400).json({
+    message: `Invalid answer submitted for question: ${question.question}`,
+  });
+}
 
-      if (isCorrect) {
-        score++;
-      }
+  const isCorrect =
+    selectedAnswer === question.correctAnswer;
 
-      return {
-        questionId: question._id,
-        question: question.question,
-        selectedAnswer,
-        correctAnswer: question.correctAnswer,
-        isCorrect,
-        explanation: question.explanation,
-      };
-    });
+  if (isCorrect) {
+    score++;
+  }
+
+  return {
+    questionId: question._id,
+    question: question.question,
+    selectedAnswer,
+    correctAnswer: question.correctAnswer,
+    isCorrect,
+    explanation: question.explanation,
+  };
+});
+
+    
 
     const totalQuestions = quiz.questions.length;
 
@@ -237,6 +339,7 @@ const submitQuiz = async (req, res) => {
     });
   }
 };
+
 
 
 module.exports = {
